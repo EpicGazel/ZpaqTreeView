@@ -1,9 +1,7 @@
-# import sys
 from treelib import Tree
 import re
 from subprocess import check_output, Popen, PIPE
 import tqdm
-# import time
 
 
 class File:
@@ -51,27 +49,22 @@ def create_filetree(tree: Tree, contents):
         r"-\s(?P<daytime>[0-9]{4}-[0-9]{2}-[0-9]{2}\s[0-9]{2}:[0-9]{2}:[0-9]{2})\s+"
         r"(?P<size>[0-9]+(\.[0-9]+)*)\s+(?P<attribute>[A-Za-z0-9]+)\s+(?P<path>.*)")
     num_files_pattern = re.compile(r"([0-9]+(\.[0-9])*)+\sfiles")
-    num_files = 0
 
-    # TODO: Add progress loading bar
-    bar = tqdm.tqdm(contents, total=99999)
-    for line in bar:
+    num_files = 0
+    for line in contents:
+        match = re.search(num_files_pattern, line)
+        if match:
+            temp = match.group()
+            num_files = int(temp[0:temp.find(" files")].replace(".", ""))
+            break
+
+    for line in tqdm.tqdm(contents, total=num_files, unit="files", colour="green"):
         try:
-            if num_files == 0:
-                match = re.search(num_files_pattern, line)
-                if match:
-                    temp = match.group()
-                    num_files = int(temp[0:temp.find(" files")].replace(".", ""))
-                    bar.reset(total=num_files)
-                    bar.refresh()
-            elif line[0] == "-":
+            if line[0] == "-":
                 line = line.rstrip()
                 date, _, __, attribute, fullpath = re.search(pattern, line).groups()
                 size = re.search(pattern, line).group("size")
-
                 testfile = File(fullpath, size, date, attribute)
-                # print(testfile)
-                # print()
                 add_node_new(tree, testfile)
             else:
                 pass  # print("No match found.")
@@ -144,13 +137,8 @@ def main():
     ext = file_path.split('.')[-1]
     zpaqpath = None
     if ext == 'zpaq':
-        # contents = check_output("zpaqfranz l \"" + file_path + "\" -longpath", encoding="utf-8", errors="ignore").split("\n")
-        # start = time.time()
         contents = Popen(["zpaqfranz", "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8", errors="ignore").stdout
         zpaqpath = file_path
-        # for line in contents:
-        #     print(line.rstrip())
-        # open("testoutput.txt", 'w', encoding="utf-8").write(contents)
     elif ext == 'txt':
         contents = open(file_path, 'r', encoding="utf-8")
     else:
@@ -159,8 +147,6 @@ def main():
 
     tree = Tree()
     create_filetree(tree, contents)
-    # print(f"Tree created in {round(time.time() - start, 2)} seconds.")
-    # return
 
     if ext == 'txt':
         contents.close()
