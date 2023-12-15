@@ -1,7 +1,8 @@
 from treelib import Tree
 import re
-from subprocess import check_output, Popen, PIPE
+from subprocess import check_output, Popen, PIPE, CalledProcessError
 import tqdm
+from sys import stderr
 
 
 class File:
@@ -57,6 +58,12 @@ def create_filetree(tree: Tree, contents):
             temp = match.group()
             num_files = int(temp[0:temp.find(" files")].replace(".", ""))
             break
+        elif line.find("ERROR_FILE_NOT_FOUND") != -1:
+            print("ZPAQ file not found.", file=stderr)
+            exit(1)
+        elif line.find("Usage") != -1:
+            print("ZPAQ path may have been entered improperly.", file=stderr)
+            exit(1)
 
     for line in tqdm.tqdm(contents, total=num_files, unit="files", colour="green"):
         try:
@@ -91,14 +98,19 @@ def explore_tree(tree: Tree, zpaqpath: str = None):
         if user_input == 'q' or user_input == 'Q':
             break
         elif user_input == 's':
-            path = input("Enter path: ")
             file_type = input("Enter text or json: ")
-            if file_type == "text":
-                tree.save2file(path)
-            elif file_type == "json":
-                open(path, 'w').write(tree.to_json())
+            path = input("Enter path: ")
+            try:
+                if file_type == "text":
+                    tree.save2file(path)
+                elif file_type == "json":
+                    open(path, 'w').write(tree.to_json())
+                else:
+                    print("Invalid file type selected.")
+            except Exception as e:  # FileNotFoundError, OSError Invalid argument,
+                print(f"Something went wrong with the file path. Error: {e}")
             continue
-        elif user_input.isnumeric():
+        elif user_input.isnumeric() and 0 < int(user_input) <= len(tree.children(curr_node)):
             curr_node = tree.children(curr_node)[int(user_input) - 1].identifier
             continue
         elif user_input == '..':
@@ -114,19 +126,23 @@ def explore_tree(tree: Tree, zpaqpath: str = None):
             if zpaqpath is None:
                 zpaqpath = input("Please specify path to zpaq file: ")
             extract_path = input("Enter extract path (not including file/directory name): ").replace("\\", "/")
-            if tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
+            # TODO: Consider if they have children first to check if folder, should be more accurate
+            if len(tree.children(curr_node)) != 0: #tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
                 if extract_path[-1] != "/":  # must include trailing /
                     extract_path += "/"
                 command = f"zpaqfranz x \"{zpaqpath}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
-            else:  # is file
+            else:  # is file or empty directory
                 if extract_path[-1] == "/":  # must drop trailing /
                     extract_path = extract_path[:-1]
                 command = f"zpaqfranz x \"{zpaqpath}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
                 if extract_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
                     command += " -space"
 
-            # print(f"Command: {command}")
-            print(check_output(command).decode("utf-8"))
+            print(f"Command: {command}")
+            try:
+                print(check_output(command).decode("utf-8"))
+            except CalledProcessError as e:
+                print(f"Something went wrong with extracting. Error: {e}")
         else:
             print("Invalid input. Please try again.")
             continue
@@ -136,22 +152,37 @@ def main():
     file_path = input("Enter file path to load: ")
     ext = file_path.split('.')[-1]
     zpaqpath = None
-    if ext == 'zpaq':
-        contents = Popen(["zpaqfranz", "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8", errors="ignore").stdout
-        zpaqpath = file_path
-    elif ext == 'txt':
-        contents = open(file_path, 'r', encoding="utf-8")
-    else:
-        print("Invalid file type. Please try again.")
-        return
+    try:
+        if ext == 'zpaq':
+            contents = Popen(["zpaqfranz", "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8",
+                             errors="ignore").stdout
+            zpaqpath = file_path
+        elif ext == 'txt':
+            contents = open(file_path, 'r', encoding="utf-8")
+        else:
+            print("Invalid file type.", file=stderr)
+            exit(1)
+    except Exception as e:
+        print(f"Something went wrong getting the file list. Error: {e}", file=stderr)
+        exit(1)
 
     tree = Tree()
-    create_filetree(tree, contents)
+    try:
+        create_filetree(tree, contents)
+    except Exception as e:
+        print(f"Something went wrong creating the file tree. Error: {e}", file=stderr)
+        if ext == 'txt':
+            contents.close()
+        exit(1)
 
     if ext == 'txt':
         contents.close()
 
-    explore_tree(tree, zpaqpath)
+    try:
+        explore_tree(tree, zpaqpath)
+    except Exception as e:
+        print(f"Something went wrong exploring the file tree. Error: {e}", file=stderr)
+        exit(1)
 
 
 if __name__ == "__main__":
