@@ -126,7 +126,6 @@ def explore_tree(tree: Tree, zpaqpath: str = None):
             if zpaqpath is None:
                 zpaqpath = input("Please specify path to zpaq file: ")
             extract_path = input("Enter extract path (not including file/directory name): ").replace("\\", "/")
-            # TODO: Consider if they have children first to check if folder, should be more accurate
             if len(tree.children(curr_node)) != 0: #tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
                 if extract_path[-1] != "/":  # must include trailing /
                     extract_path += "/"
