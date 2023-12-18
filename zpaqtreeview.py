@@ -34,7 +34,8 @@ def build_parent_nodes(tree: Tree, path: str):
         return parent_path
 
     if not tree.get_node(parent_path):
-        tree.create_node(parent_path, parent_path, parent=build_parent_nodes(tree, parent_path))
+        data = File(parent_path, 0, 0, "?")
+        tree.create_node(parent_path, parent_path, parent=build_parent_nodes(tree, parent_path), data=data)
 
     return parent_path
 
@@ -56,8 +57,10 @@ def create_filetree(tree: Tree, contents):
         r"(?P<size>[0-9]+(\.[0-9]+)*)\s+(?P<attribute>[A-Za-z0-9]+)\s+(?P<path>.*)")
     num_files_pattern = re.compile(r"([0-9]+(\.[0-9])*)+\sfiles")
 
+    #Find number of files for estimate (this appears to be off because of the versions?)
     num_files = 0
     for line in contents:
+        num_files -= 1
         match = re.search(num_files_pattern, line)
         if match:
             temp = match.group()
@@ -70,7 +73,9 @@ def create_filetree(tree: Tree, contents):
             print("ZPAQ path may have been entered improperly.", file=stderr)
             exit(1)
 
-    for line in tqdm.tqdm(contents, total=num_files, unit="files", colour="green"):
+    print("Creating file tree...")
+    bar = tqdm.tqdm(contents, total=num_files, unit="files", colour="green", leave=False)
+    for line in bar:
         try:
             if line[0] == "-":
                 line = line.rstrip()
@@ -79,9 +84,15 @@ def create_filetree(tree: Tree, contents):
                 testfile = File(fullpath, size, date, attribute)
                 add_node_new(tree, testfile)
             else:
-                pass  # print("No match found.")
+                # num_files -= 1
+                # bar.total = num_files
+                # bar.refresh()
+                pass
         except IndexError:  # sometimes line[0] is invalid
             pass
+
+    # Ideally would update bar total here instead of just closing and hiding it with leave=False
+    bar.close()
 
 
 def explore_tree(tree: Tree, zpaqpath: str = None):
