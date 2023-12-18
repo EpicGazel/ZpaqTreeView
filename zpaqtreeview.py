@@ -20,12 +20,17 @@ class File:
         return f"{self.lastModified}\t{self.size:>14} {self.attribute:10}\t {self.fullPath}"
 
 
+def is_directory(node):
+    return not node.is_leaf()
+
+
 def build_parent_nodes(tree: Tree, path: str):
     parent_path = '/'.join(path.split('/')[0:-1])
 
     if parent_path.find('/') == -1:
-        if not tree.get_node(parent_path):
-            tree.create_node(parent_path, parent_path)
+        if not tree.get_node(parent_path):  # parent is root
+            data = File(parent_path, 0, 0, "root")
+            tree.create_node(parent_path, parent_path, data=data)
         return parent_path
 
     if not tree.get_node(parent_path):
@@ -177,11 +182,14 @@ def main():
     if ext == 'txt':
         contents.close()
 
-    try:
-        explore_tree(tree, zpaqpath)
-    except Exception as e:
-        print(f"Something went wrong exploring the file tree. Error: {e}", file=stderr)
-        exit(1)
+    if __name__ == "__main__":
+        try:
+            explore_tree(tree, zpaqpath)
+        except Exception as e:
+            print(f"Something went wrong exploring the file tree. Error: {e}", file=stderr)
+            exit(1)
+    else:
+        return tree
 
 
 if __name__ == "__main__":
