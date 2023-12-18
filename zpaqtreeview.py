@@ -27,6 +27,7 @@ def is_directory(node):
 def build_parent_nodes(tree: Tree, path: str):
     parent_path = '/'.join(path.split('/')[0:-1])
 
+    # TODO: work with non-windows drive root dir/linux directories
     if parent_path.find('/') == -1:
         if not tree.get_node(parent_path):  # parent is root
             data = File(parent_path, 0, 0, "root")
