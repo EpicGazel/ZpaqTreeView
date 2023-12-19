@@ -1,3 +1,5 @@
+import configparser
+
 from treelib import Tree
 import re
 from subprocess import check_output, Popen, PIPE, CalledProcessError
@@ -96,7 +98,7 @@ def create_filetree(tree: Tree, contents):
     bar.close()
 
 
-def explore_tree(tree: Tree, zpaqpath: str = None):
+def explore_tree(tree: Tree, config, zpaq_file: str = None):
     user_input = "0"
     curr_node = tree.root
     while user_input != 'q' and user_input != 'Q':
@@ -140,17 +142,17 @@ def explore_tree(tree: Tree, zpaqpath: str = None):
             curr_node = tree.root
             continue
         elif user_input == 'x':
-            if zpaqpath is None:
-                zpaqpath = input("Please specify path to zpaq file: ")
+            if zpaq_file is None:
+                zpaq_file = input("Please specify path to zpaq file: ")
             extract_path = input("Enter extract path (not including file/directory name): ").replace("\\", "/")
             if len(tree.children(curr_node)) != 0: #tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
                 if extract_path[-1] != "/":  # must include trailing /
                     extract_path += "/"
-                command = f"zpaqfranz x \"{zpaqpath}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
+                command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
             else:  # is file or empty directory
                 if extract_path[-1] == "/":  # must drop trailing /
                     extract_path = extract_path[:-1]
-                command = f"zpaqfranz x \"{zpaqpath}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
+                command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
                 if extract_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
                     command += " -space"
 
@@ -164,15 +166,58 @@ def explore_tree(tree: Tree, zpaqpath: str = None):
             continue
 
 
+def load_create_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    needToWrite = False
+    if not config.has_section('config'):
+        config.add_section('config')
+        needToWrite = True
+    if not config.has_option('config', 'zpaq_path'):
+        try:
+            check_output(["zpaqfranz", "--version"])
+            config.set('config', 'zpaq_path', 'zpaqfranz')
+            print("zpaqfranz found.")
+        except CalledProcessError:
+            zpaq_path = input("Enter zpaqfranz path (no quotes): ")
+            # retry until valid
+            valid_path = False
+            while not valid_path:
+                try:
+                    check_output([zpaq_path, "--version"])
+                    valid_path = True
+                except CalledProcessError:
+                    zpaq_path = input("Path was invalid, please try again. Enter zpaqfranz path (no quotes): ")
+            config.set('config', 'zpaq_path', zpaq_path)
+        needToWrite = True
+    if config.has_option('config', 'zpaq_path'):
+        valid_path = False
+        while not valid_path:
+            try:
+                output = check_output([config.get('config', 'zpaq_path'), "--version"])
+                valid_path = True
+                needToWrite = True
+            except Exception as e:
+                print(f"Something went wrong with zpaqfranz.\nError: {e}", file=stderr)
+                zpaq_path = input("Path was invalid, please try again. Enter zpaqfranz path (no quotes): ")
+                config.set('config', 'zpaq_path', zpaq_path)
+    if needToWrite:
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+    return config
+
+
 def main():
+    config = load_create_config()
     file_path = input("Enter file path to load: ")
     ext = file_path.split('.')[-1]
-    zpaqpath = None
+    zpaqpath = config.get('config', 'zpaq_path')
+    zpaq_file = None
     try:
         if ext == 'zpaq':
-            contents = Popen(["zpaqfranz", "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8",
+            contents = Popen([zpaqpath, "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8",
                              errors="ignore").stdout
-            zpaqpath = file_path
+            zpaq_file = file_path
         elif ext == 'txt':
             contents = open(file_path, 'r', encoding="utf-8")
         else:
@@ -196,7 +241,7 @@ def main():
 
     if __name__ == "__main__":
         try:
-            explore_tree(tree, zpaqpath)
+            explore_tree(tree, config, zpaq_file)
         except Exception as e:
             print(f"Something went wrong exploring the file tree. Error: {e}", file=stderr)
             exit(1)
