@@ -228,12 +228,13 @@ def linux_tests():
     # zpaqfranz x "/mnt/b/g_drive.zpaq" "G:/.minecraft/screenshots/2019-05-09_21.57.51.png" -to "/mnt/b/tempout/2019-05-09_21.57.51.png"
     print(check_output(["zpaqfranz", "x", "/mnt/b/g_drive.zpaq", "G:/.minecraft/screenshots/2019-05-09_21.57.51.png", "-to", "/mnt/b/tempout/2019-05-09_21.57.51.png"]).decode("utf-8"))
 
-def main():
-    config = load_create_config()
-    # if system() != "Windows":
-    #     linux_tests()
-    #     return
-    file_path = input("Enter file path to load: ")
+
+def main(config=None, file_path=None):
+    if config is None:
+        config = load_create_config()
+    if file_path is None:
+        file_path = input("Enter file path to load: ")
+
     ext = file_path.split('.')[-1]
     zpaqpath = config.get('config', 'zpaq_path')
     zpaq_file = None
