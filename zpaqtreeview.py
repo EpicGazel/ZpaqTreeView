@@ -5,6 +5,8 @@ import re
 from subprocess import check_output, Popen, PIPE, CalledProcessError
 import tqdm
 from sys import stderr
+from platform import system
+import traceback
 
 
 class File:
@@ -146,21 +148,40 @@ def explore_tree(tree: Tree, config, zpaq_file: str = None):
                 zpaq_file = input("Please specify path to zpaq file: ")
             extract_path = input("Enter extract path (not including file/directory name): ").replace("\\", "/")
             if len(tree.children(curr_node)) != 0: #tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
-                if extract_path[-1] != "/":  # must include trailing /
+                # must include trailing /
+                if extract_path[-1] != "/":
                     extract_path += "/"
-                command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
+                if system() == "Windows":
+                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
+                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path, "-longpath", "-find", curr_node + "/"]
+                else:
+                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\""
+                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path]
             else:  # is file or empty directory
-                if extract_path[-1] == "/":  # must drop trailing /
-                    extract_path = extract_path[:-1]
-                command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
-                if extract_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
-                    command += " -space"
+                if system() == "Windows":
+                    if extract_path[-1] == "/":  # must drop trailing /
+                        extract_path = extract_path[:-1]
+                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
+                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path, "-longpath", "-find", '/'.join(curr_node.split('/')[:-1]) + "/"]
+                    if extract_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
+                        command.append("-space")
+                else:
+                    # must include trailing /
+                    if extract_path[-1] != "/":
+                        extract_path += "/"
+                    # must include trailing /
+                    if curr_node[-1] == "/":
+                        extract_path += curr_node.split("/")[-2]
+                    else:
+                        extract_path += curr_node.split("/")[-1]
+                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\""
+                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path]
 
             print(f"Command: {command}")
             try:
                 print(check_output(command).decode("utf-8"))
-            except CalledProcessError as e:
-                print(f"Something went wrong with extracting. Error: {e}")
+            except Exception as e: #CalledProcessError as e:
+                print(f"Something went wrong with extracting. Error: {traceback.format_exc()}")
         else:
             print("Invalid input. Please try again.")
             continue
@@ -175,7 +196,7 @@ def load_create_config():
         needToWrite = True
     if not config.has_option('config', 'zpaq_path'):
         try:
-            check_output(["zpaqfranz", "--version"])
+            check_output(["zpaqfranz"])
             config.set('config', 'zpaq_path', 'zpaqfranz')
             print("zpaqfranz found.")
         except CalledProcessError:
@@ -184,7 +205,7 @@ def load_create_config():
             valid_path = False
             while not valid_path:
                 try:
-                    check_output([zpaq_path, "--version"])
+                    check_output([zpaq_path])
                     valid_path = True
                 except CalledProcessError:
                     zpaq_path = input("Path was invalid, please try again. Enter zpaqfranz path (no quotes): ")
@@ -194,11 +215,11 @@ def load_create_config():
         valid_path = False
         while not valid_path:
             try:
-                output = check_output([config.get('config', 'zpaq_path'), "--version"])
+                output = check_output([config.get('config', 'zpaq_path')])
                 valid_path = True
                 needToWrite = True
             except Exception as e:
-                print(f"Something went wrong with zpaqfranz.\nError: {e}", file=stderr)
+                print(f"Something went wrong with zpaqfranz.\nError: {e.with_traceback()}", file=stderr)
                 zpaq_path = input("Path was invalid, please try again. Enter zpaqfranz path (no quotes): ")
                 config.set('config', 'zpaq_path', zpaq_path)
     if needToWrite:
@@ -207,8 +228,15 @@ def load_create_config():
     return config
 
 
+def linux_tests():
+    # zpaqfranz x "/mnt/b/g_drive.zpaq" "G:/.minecraft/screenshots/2019-05-09_21.57.51.png" -to "/mnt/b/tempout/2019-05-09_21.57.51.png"
+    print(check_output(["zpaqfranz", "x", "/mnt/b/g_drive.zpaq", "G:/.minecraft/screenshots/2019-05-09_21.57.51.png", "-to", "/mnt/b/tempout/2019-05-09_21.57.51.png"]).decode("utf-8"))
+
 def main():
     config = load_create_config()
+    # if system() != "Windows":
+    #     linux_tests()
+    #     return
     file_path = input("Enter file path to load: ")
     ext = file_path.split('.')[-1]
     zpaqpath = config.get('config', 'zpaq_path')
