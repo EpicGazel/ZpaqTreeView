@@ -54,6 +54,7 @@ class TreeTUI(App):
     CSS_PATH = "tree_tui.tcss"
     BINDINGS = [
         ("f", "toggle_files", "Toggle Files"),
+        ("x", "extract", "Extract"),
         ("q", "quit", "Quit"),
     ] # TODO: f = find, x = extract, s = save, q = quit, i = file info, maybe something about file selection?
 
@@ -100,6 +101,8 @@ class TreeTUI(App):
     #     #     self.query_one("#code-view").scroll_home(animate=False)
         #     self.sub_title = str(event.path)
 
+    def action_extract(self) -> None:
+        pass
     def action_toggle_files(self) -> None:
         """Called in response to key binding."""
         self.show_tree = not self.show_tree

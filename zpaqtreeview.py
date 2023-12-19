@@ -24,14 +24,10 @@ class File:
         return f"{self.lastModified}\t{self.size:>14} {self.attribute:10}\t {self.fullPath}"
 
 
-def is_directory(node):
-    return not node.is_leaf()
-
-
 def build_parent_nodes(tree: Tree, path: str):
     parent_path = '/'.join(path.split('/')[0:-1])
 
-    # TODO: work with non-windows drive root dir/linux directories
+    # TODO: verify works with non-windows drive root dir/linux directories
     if parent_path.find('/') == -1:
         if not tree.get_node(parent_path):  # parent is root
             data = File(parent_path, 0, 0, "root")
@@ -62,7 +58,7 @@ def create_filetree(tree: Tree, contents):
         r"(?P<size>[0-9]+(\.[0-9]+)*)\s+(?P<attribute>[A-Za-z0-9]+)\s+(?P<path>.*)")
     num_files_pattern = re.compile(r"([0-9]+(\.[0-9])*)+\sfiles")
 
-    #Find number of files for estimate (this appears to be off because of the versions?)
+    # Find number of files for estimate (this appears to be off because of the versions?)
     num_files = 0
     for line in contents:
         num_files -= 1
@@ -100,6 +96,39 @@ def create_filetree(tree: Tree, contents):
     bar.close()
 
 
+def extract_file(config, zpaq_file, extract_from_path, extract_to_path, is_directory=False):
+    if is_directory: #len(tree.children(node)) != 0:  # assumes all folders have 0 children
+        # must include trailing /
+        if extract_to_path[-1] != "/":
+            extract_to_path += "/"
+        if system() == "Windows":
+            command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path, "-longpath",
+                       "-find", extract_from_path + "/"]
+        else:
+            command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path]
+    else:  # is file or empty directory
+        if system() == "Windows":
+            if extract_to_path[-1] == "/":  # must drop trailing /
+                extract_to_path = extract_to_path[:-1]
+            command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path, "-longpath",
+                       "-find", '/'.join(extract_from_path.split('/')[:-1]) + "/"]
+            if extract_to_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
+                command.append("-space")
+        else:
+            # must include trailing /
+            if extract_from_path[-1] == "/":
+                extract_to_path += extract_from_path.split("/")[-2]
+            else:
+                extract_to_path += extract_from_path.split("/")[-1]
+            command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path]
+
+    print(f"Command: {command}")
+    try:
+        print(check_output(command).decode("utf-8"))
+    except Exception as e:  # CalledProcessError as e:
+        print(f"Something went wrong with extracting. Error: {traceback.format_exc()}")
+
+
 def explore_tree(tree: Tree, config, zpaq_file: str = None):
     user_input = "0"
     curr_node = tree.root
@@ -129,7 +158,7 @@ def explore_tree(tree: Tree, config, zpaq_file: str = None):
                 else:
                     print("Invalid file type selected.")
             except Exception as e:  # FileNotFoundError, OSError Invalid argument,
-                print(f"Something went wrong with the file path. Error: {e}")
+                print(f"Something went wrong with the file path. Error: {traceback.format_exc()}", file=stderr)
             continue
         elif user_input.isnumeric() and 0 < int(user_input) <= len(tree.children(curr_node)):
             curr_node = tree.children(curr_node)[int(user_input) - 1].identifier
@@ -147,41 +176,8 @@ def explore_tree(tree: Tree, config, zpaq_file: str = None):
             if zpaq_file is None:
                 zpaq_file = input("Please specify path to zpaq file: ")
             extract_path = input("Enter extract path (not including file/directory name): ").replace("\\", "/")
-            if len(tree.children(curr_node)) != 0: #tree.get_node(curr_node).data.size == '0':  # is folder, assumes all folders are 0 size
-                # must include trailing /
-                if extract_path[-1] != "/":
-                    extract_path += "/"
-                if system() == "Windows":
-                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\" -longpath -find \"{curr_node}/\""
-                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path, "-longpath", "-find", curr_node + "/"]
-                else:
-                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}/\" -to \"{extract_path}\""
-                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path]
-            else:  # is file or empty directory
-                if system() == "Windows":
-                    if extract_path[-1] == "/":  # must drop trailing /
-                        extract_path = extract_path[:-1]
-                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\" -longpath -find \"{'/'.join(curr_node.split('/')[:-1])}/\""
-                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path, "-longpath", "-find", '/'.join(curr_node.split('/')[:-1]) + "/"]
-                    if extract_path[-1] == ":":  # when extracting to directory root, -space is required for some reason
-                        command.append("-space")
-                else:
-                    # must include trailing /
-                    if extract_path[-1] != "/":
-                        extract_path += "/"
-                    # must include trailing /
-                    if curr_node[-1] == "/":
-                        extract_path += curr_node.split("/")[-2]
-                    else:
-                        extract_path += curr_node.split("/")[-1]
-                    # command = f"{config.get('config', 'zpaq_path')} x \"{zpaq_file}\" \"{curr_node}\" -to \"{extract_path}\""
-                    command = [config.get('config', 'zpaq_path'), "x", zpaq_file, curr_node, "-to", extract_path]
-
-            print(f"Command: {command}")
-            try:
-                print(check_output(command).decode("utf-8"))
-            except Exception as e: #CalledProcessError as e:
-                print(f"Something went wrong with extracting. Error: {traceback.format_exc()}")
+            node = tree.get_node(curr_node)
+            extract_file(config, zpaq_file, node.data.fullPath, extract_path, not node.is_leaf())
         else:
             print("Invalid input. Please try again.")
             continue
@@ -215,7 +211,7 @@ def load_create_config():
         valid_path = False
         while not valid_path:
             try:
-                output = check_output([config.get('config', 'zpaq_path')])
+                check_output([config.get('config', 'zpaq_path')])
                 valid_path = True
                 needToWrite = True
             except Exception as e:
@@ -252,14 +248,14 @@ def main():
             print("Invalid file type.", file=stderr)
             exit(1)
     except Exception as e:
-        print(f"Something went wrong getting the file list. Error: {e}", file=stderr)
+        print(f"Something went wrong getting the file list. Error: {traceback.format_exc()}", file=stderr)
         exit(1)
 
     tree = Tree()
     try:
         create_filetree(tree, contents)
     except Exception as e:
-        print(f"Something went wrong creating the file tree. Error: {e}", file=stderr)
+        print(f"Something went wrong creating the file tree. Error: {traceback.format_exc()}", file=stderr)
         if ext == 'txt':
             contents.close()
         exit(1)
@@ -271,7 +267,7 @@ def main():
         try:
             explore_tree(tree, config, zpaq_file)
         except Exception as e:
-            print(f"Something went wrong exploring the file tree. Error: {e}", file=stderr)
+            print(f"Something went wrong exploring the file tree. Error: {traceback.format_exc()}", file=stderr)
             exit(1)
     else:
         return tree
