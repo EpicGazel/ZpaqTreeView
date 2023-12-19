@@ -137,9 +137,12 @@ class TreeTUI(App):
         input_box.value = ""
         self.action_extract_menu()
 
+        # TODO: Toast notification of extraction result
+
 
 if __name__ == "__main__":
     config = ztv.load_create_config()
+    # TODO: Allow selection of input file/zpaq, maybe txt
     input_file = "b:/g_drive.zpaq"
     tree = convert_filetree(config, input_file)
     TreeTUI().run()
