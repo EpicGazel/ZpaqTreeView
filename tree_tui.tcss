@@ -8,7 +8,6 @@ Screen {
     overflow: auto;
     width: auto;
     height: 100%;
-    dock: left;
 }
 
 TreeTUI.-show-tree #tree-view {
@@ -16,11 +15,14 @@ TreeTUI.-show-tree #tree-view {
     max-width: 50%;
 }
 
-
-#code-view {
-    overflow: auto scroll;
-    min-width: 100%;
+#file-input {
+    background: $accent-darken-2;
 }
-#code {
-    width: auto;
+
+.hidden {
+    display: none;
+}
+
+.shown {
+    display: block;
 }
