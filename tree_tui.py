@@ -140,6 +140,13 @@ class TreeTUI(App):
 if __name__ == "__main__":
     config = ztv.load_create_config()
     # TODO: Allow selection of input file/zpaq, maybe txt
-    input_file = "b:/g_drive.zpaq"
+    #input_file = "b:/g_drive.zpaq"
+    if len(argv) == 1:
+        input_file = input("Enter file path to load: ")
+    elif len(argv) == 2:
+        input_file = argv[1]
+    else:
+        print("Too many arguments.", file=stderr)
+        exit(1)
     tree = convert_filetree(config, input_file)
     TreeTUI().run()
