@@ -137,6 +137,16 @@ def extract_file(config, zpaq_file, extract_from_path, extract_to_path, is_direc
     return extract_to_path + "/" + extract_from_path.split("/")[-1]
 
 
+def read_file(config, zpaq_file, extract_from_path):
+    try:
+        command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-longpath", "-stdout"]
+        print(f"Command: {command}")
+        return check_output(command)
+    except Exception as e:  # CalledProcessError as e:
+        print(f"Something went wrong with extracting. Error: {traceback.format_exc()}")
+
+
+
 def explore_tree(tree: Tree, config, zpaq_file: str = None):
     user_input = "0"
     curr_node = tree.root
