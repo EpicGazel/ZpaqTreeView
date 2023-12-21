@@ -12,7 +12,7 @@ import traceback
 class File:
     def __init__(self, full_path, size, last_modified, attribute):
         self.fullPath = full_path.rstrip("/")
-        self.size = size
+        self.size = size if type(size) is int else int(size.replace(".", ""))
         self.lastModified = last_modified
         self.attribute = attribute
         if full_path[-1] != "/":  # not a folder
@@ -23,6 +23,9 @@ class File:
     def __str__(self):
         return f"{self.lastModified}\t{self.size:>14} {self.attribute:10}\t {self.fullPath}"
 
+    def is_directory(self):
+        return "D" in self.attribute
+
 
 def build_parent_nodes(tree: Tree, path: str):
     parent_path = '/'.join(path.split('/')[0:-1])
@@ -30,7 +33,7 @@ def build_parent_nodes(tree: Tree, path: str):
     # TODO: verify works with non-windows drive root dir/linux directories
     if parent_path.find('/') == -1:
         if not tree.get_node(parent_path):  # parent is root
-            data = File(parent_path, 0, 0, "root")
+            data = File(parent_path, 0, 0, "DV")
             tree.create_node(parent_path, parent_path, data=data)
         return parent_path
 
@@ -134,8 +137,12 @@ def explore_tree(tree: Tree, config, zpaq_file: str = None):
     curr_node = tree.root
     while user_input != 'q' and user_input != 'Q':
         print(f"Current node: {curr_node}")
-        if len(tree.children(curr_node)) == 0:
-            print("Node empty.")
+        if not tree.get_node(curr_node).data.is_directory():
+            print("Is file.")
+            print("Enter .. to go back a directory. Enter root to go back to "
+                  "root.\nEnter s to save tree to file.\nEnter x to extract file/directory.\nEnter q to quit")
+        elif len(tree.children(curr_node)) == 0:
+            print("Directory empty.")
             print("Enter .. to go back a directory. Enter root to go back to "
                   "root.\nEnter s to save tree to file.\nEnter x to extract file/directory.\nEnter q to quit")
         else:

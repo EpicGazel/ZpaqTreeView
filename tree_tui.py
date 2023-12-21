@@ -31,7 +31,7 @@ def convert_filetree(config=None, file_path=None):
         children_sorted = tl_tree.children(tl_node.tag)
         children_sorted.sort(key=lambda x: (x.is_leaf(), x.data.name.lower()))
         for tl_child_node in children_sorted:
-            if not tl_child_node.is_leaf():  # If directory, true
+            if tl_child_node.data.is_directory():  # not tl_child_node.is_leaf():  # If directory, true
                 tl_node_stack.append(tl_child_node)
                 tx_stack.append(
                     tx_node.add(tl_child_node.data.name, data=tl_child_node.data))
@@ -84,7 +84,7 @@ class TreeTUI(App):
 
     def action_extract_menu(self) -> None:
         out_directory = filedialog.askdirectory(initialdir=getcwd(), mustexist=True, title="Select output directory")
-        ztv.extract_file(config, input_file, self.current_node.data.fullPath, out_directory, len(self.current_node.children) > 0)
+        ztv.extract_file(config, input_file, self.current_node.data.fullPath, out_directory, self.current_node.data.is_directory())
         # TODO: Toast notification of extraction result
 
     def action_toggle_files(self) -> None:
@@ -97,7 +97,6 @@ class TreeTUI(App):
 
 if __name__ == "__main__":
     config = ztv.load_create_config()
-    # TODO: Allow selection of input file/zpaq, maybe txt
     if len(argv) == 1:
         input_file = None
         while input_file is None:
