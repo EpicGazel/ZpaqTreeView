@@ -5,16 +5,13 @@ Run with:
 
     python code_browser.py PATH
 """
-import re
-from sys import stderr, argv
+from sys import argv
 
-from rich.syntax import Syntax
-from rich.traceback import Traceback
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll
+from textual.containers import Container
 from textual.reactive import var
-from textual.widgets import Tree, Footer, Header, Static, Input
+from textual.widgets import Tree, Footer, Header, Input
 from tqdm import tqdm
 import zpaqtreeview as ztv
 
@@ -56,7 +53,7 @@ class TreeTUI(App):
         ("x", "extract_menu", "Extract"),
         ("escape", "exit_text_field", "Exit Text Field"),
         ("q", "quit", "Quit"),
-    ] # TODO: f = find, x = extract, s = save, q = quit, i = file info, maybe something about file selection?
+    ]  # TODO: f = find, x = extract, s = save, q = quit, i = file info, maybe something about file selection?
 
     show_tree = var(True)
     show_file_input = var(False)
