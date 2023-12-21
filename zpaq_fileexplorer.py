@@ -411,28 +411,40 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
         return {"file_name": file_name, **entry_obj.get_file_info()}
 
+    # @operation
+    # def read(self, file_context, offset, length):
+    #     if len(file_context.file_obj.data) == 0:
+    #         ex_file = None
+    #         if file_context.file_obj.file_size < self.max_cache_size: # 30 MB deafult
+    #             ex_file = ztv.extract_file(self.config, self.input_file, file_context.file_obj.file_data.fullPath,
+    #                              self.cache_location, file_context.file_obj.file_data.is_directory())
+    #             if ex_file is not None:
+    #                 with open(ex_file, 'rb') as f:
+    #                     file_context.file_obj.data = bytearray(f.read())
+    #
+    #             end_offset = min(file_context.file_obj.file_size, offset + length)
+    #             return file_context.file_obj.data[offset:end_offset]
+    #         else:
+    #             file_context.file_obj.data = bytearray(1)
+    #             return file_context.file_obj.data
+    #
+    #     if len(file_context.file_obj.data) > 1:
+    #         end_offset = min(file_context.file_obj.file_size, offset + length)
+    #         return file_context.file_obj.data[offset:end_offset]
+    #
+    #     return bytearray(1)
+
     @operation
     def read(self, file_context, offset, length):
         if len(file_context.file_obj.data) == 0:
-            ex_file = None
-            if file_context.file_obj.file_size < self.max_cache_size: # 30 MB deafult
-                ex_file = ztv.extract_file(self.config, self.input_file, file_context.file_obj.file_data.fullPath,
-                                 self.cache_location, file_context.file_obj.file_data.is_directory())
-                if ex_file is not None:
-                    with open(ex_file, 'rb') as f:
-                        file_context.file_obj.data = bytearray(f.read())
-
-                end_offset = min(file_context.file_obj.file_size, offset + length)
-                return file_context.file_obj.data[offset:end_offset]
+            if file_context.file_obj.file_size < self.max_cache_size: # 30MB default
+                file_context.file_obj.data = bytearray(
+                    ztv.read_file(self.config, self.input_file, file_context.file_obj.file_data.fullPath))
             else:
                 file_context.file_obj.data = bytearray(1)
-                return file_context.file_obj.data
 
-        if len(file_context.file_obj.data) > 1:
-            end_offset = min(file_context.file_obj.file_size, offset + length)
-            return file_context.file_obj.data[offset:end_offset]
 
-        return bytearray(1)
+        return file_context.file_obj.data[offset:offset + length]
 
 
 
@@ -505,7 +517,7 @@ def convert_filetree(config, file_path, fs):
     # fs_stack = [fs_root]
     # fs_root = fs.operations._create_directory(new_path, tl_tree.get_node(tl_tree.root).data)
 
-    print("Converting file tree to textual...")
+    print("Converting file tree to winfspy structure...")
     bar = tqdm(total=tl_tree.size(), unit="nodes", colour="green", leave=False)
     c1 = 0
     while len(tl_node_stack) > 0:
