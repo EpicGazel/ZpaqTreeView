@@ -104,9 +104,12 @@ def extract_file(config, zpaq_file, extract_from_path, extract_to_path, is_direc
         # must include trailing /
         if extract_to_path[-1] != "/":
             extract_to_path += "/"
+        if extract_from_path[-1] != "/":
+            extract_from_path += "/"
+
         if system() == "Windows":
             command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path, "-longpath",
-                       "-find", extract_from_path + "/"]
+                       "-find", extract_from_path]
         else:
             command = [config.get('config', 'zpaq_path'), "x", zpaq_file, extract_from_path, "-to", extract_to_path]
     else:  # is file or empty directory
