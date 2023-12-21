@@ -1,3 +1,4 @@
+import os
 from tkinter import filedialog
 from os import getcwd
 import zpaqtreeview as ztv
@@ -103,7 +104,7 @@ class FileObj(BaseFileObj):
 
     @property
     def allocation_size(self):
-        return len(self.data)
+        return 0 if type(self.data) is not bytearray else len(self.data) #len(self.data)
 
     def set_allocation_size(self, allocation_size):
         if allocation_size < self.allocation_size:
@@ -125,11 +126,21 @@ class FileObj(BaseFileObj):
             self.adapt_allocation_size(file_size)
         self.file_size = file_size
 
-    def read(self, offset, length):
-        if offset >= self.file_size:
-            raise NTStatusEndOfFile()
-        end_offset = min(self.file_size, offset + length)
-        return self.data[offset:end_offset]
+    # def read(self, offset, length):
+    #     if offset >= self.file_size:
+    #         raise NTStatusEndOfFile()
+    #     end_offset = min(self.file_size, offset + length)
+    #
+    #     if self.file_size < self.max_cache_size: # 5 MB
+    #         ex_file = ztv.extract_file(config, "B:/g_small.zpaq", self.file_data.fullPath,
+    #                          "%userprofile%/AppData/Local/", self.file_data.is_directory())
+    #
+    #     file_bytes = 0
+    #     with open(ex_file, 'rb') as f:
+    #         file_bytes = f.read()
+    #
+    #     self.data = file_bytes
+    #     return file_bytes #self.data[offset:end_offset]
 
 
 class FolderObj(BaseFileObj):
@@ -167,7 +178,7 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
         self.input_file = input_file
         self.max_cache_size = max_cache_size
         self.config = config
-        self.cache_location = PureWindowsPath(cache_location)
+        self.cache_location = os.path.abspath(cache_location)
         self.read_only = read_only
         self._root_path = PureWindowsPath("/")
         self._root_obj = FolderObj(
@@ -402,11 +413,28 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
     @operation
     def read(self, file_context, offset, length):
-        if file_context.file_obj.file_size < self.max_cache_size: # 5 MB
-            ztv.extract_file(config, self.input_file, file_context.path,
-                             self.cache_location, file_context.file_obj.file_data.is_directory())
+        if len(file_context.file_obj.data) == 0:
+            ex_file = None
+            if file_context.file_obj.file_size < self.max_cache_size: # 30 MB deafult
+                ex_file = ztv.extract_file(self.config, self.input_file, file_context.file_obj.file_data.fullPath,
+                                 self.cache_location, file_context.file_obj.file_data.is_directory())
+                if ex_file is not None:
+                    with open(ex_file, 'rb') as f:
+                        file_context.file_obj.data = bytearray(f.read())
 
-        return -1 #ile_context.file_obj.read(offset, length)
+                end_offset = min(file_context.file_obj.file_size, offset + length)
+                return file_context.file_obj.data[offset:end_offset]
+            else:
+                file_context.file_obj.data = bytearray(1)
+                return file_context.file_obj.data
+
+        if len(file_context.file_obj.data) > 1:
+            end_offset = min(file_context.file_obj.file_size, offset + length)
+            return file_context.file_obj.data[offset:end_offset]
+
+        return bytearray(1)
+
+
 
     @operation
     def write(self, file_context, buffer, offset, write_to_end_of_file, constrained_io):
@@ -429,7 +457,7 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
 def create_memory_file_system(
     mountpoint, label="memfs", prefix="", verbose=True, debug=False, testing=False,
-        input_file="", cache_location="%userprofile%/AppData/Local/", max_cache_size = 30 * 10^6 , config=None):
+        input_file="", cache_location="%userprofile%/AppData/Local/", max_cache_size = 30 * 10**6 , config=None):
     if debug:
         enable_debug_log()
 
@@ -495,7 +523,7 @@ def convert_filetree(config, file_path, fs):
                 else: # is file
                     fileobj = fs.operations.create(new_path, CREATE_FILE_CREATE_OPTIONS.FILE_NON_DIRECTORY_FILE, None,
                         FILE_ATTRIBUTE.FILE_ATTRIBUTE_NORMAL, fs.operations._root_obj.security_descriptor, 0, tl_child_node.data)
-                    fileobj.file_obj.set_file_size(tl_child_node.data.size)
+                    fileobj.file_obj.file_size = tl_child_node.data.size
 
         bar.update()
 
@@ -505,7 +533,7 @@ def convert_filetree(config, file_path, fs):
 def create_filesystem(mountpoint, label, prefix, verbose, debug, input_file, cache_location, max_cache_size):
     config = ztv.load_create_config()
     print(f"Input file: {input_file}")
-    fs = create_memory_file_system(mountpoint, label, prefix, verbose, debug, False,
+    fs = create_memory_file_system(mountpoint, label, prefix, verbose, debug, True,
                                    input_file, cache_location, max_cache_size, config,)
     try:
         print("Starting FS")
@@ -541,8 +569,8 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true")
     parser.add_argument("-l", "--label", type=str, default="memfs")
     parser.add_argument("-p", "--prefix", type=str, default="")
-    parser.add_argument("-c", "--cache-location", type=str, default="%userprofile%/AppData/Local/Temp")
-    parser.add_argument("-s", "--cache-size-limit", type=int, default=30 * 10^6) # 30 MB
+    parser.add_argument("-c", "--cache-location", type=str, default=(os.environ["USERPROFILE"] + "/AppData/local/temp"))
+    parser.add_argument("-s", "--cache-size-limit", type=int, default=30 * 10**6) # 30 MB
     args = parser.parse_args()
 
     if args.zpaq is None:

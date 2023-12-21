@@ -134,6 +134,8 @@ def extract_file(config, zpaq_file, extract_from_path, extract_to_path, is_direc
     except Exception as e:  # CalledProcessError as e:
         print(f"Something went wrong with extracting. Error: {traceback.format_exc()}")
 
+    return extract_to_path + "/" + extract_from_path.split("/")[-1]
+
 
 def explore_tree(tree: Tree, config, zpaq_file: str = None):
     user_input = "0"
