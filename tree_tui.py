@@ -6,13 +6,13 @@ Run with:
     python code_browser.py PATH
 """
 from sys import argv
-
-
+from os import getcwd
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.reactive import var
 from textual.widgets import Tree, Footer, Header, Input
 from tqdm import tqdm
+from tkinter import filedialog
 import zpaqtreeview as ztv
 
 
@@ -51,7 +51,6 @@ class TreeTUI(App):
     BINDINGS = [
         ("f", "toggle_files", "Toggle Files"),
         ("x", "extract_menu", "Extract"),
-        ("escape", "exit_text_field", "Exit Text Field"),
         ("q", "quit", "Quit"),
     ]  # TODO: f = find, x = extract, s = save, q = quit, i = file info, maybe something about file selection?
 
@@ -77,48 +76,16 @@ class TreeTUI(App):
         yield Input(id="file-input", classes="hidden")
         with Container():
             yield tree
-            # with VerticalScroll(id="code-view"):
-            #     yield Static(id="code", expand=True)
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one(Tree).focus()
 
-    # def on_directory_tree_file_selected(
-    #     self, event: Tree.FileSelected
-    # ) -> None:
-    #     """Called when the user click a file in the directory tree."""
-    #     event.stop()
-    #     # code_view = self.query_one("#code", Static)
-    #     # try:
-    #     #     syntax = Syntax.from_path(
-    #     #         str(event.path),
-    #     #         line_numbers=True,
-    #     #         word_wrap=False,
-    #     #         indent_guides=True,
-    #     #         theme="github-dark",
-    #     #     )
-    #     # except Exception:
-    #     #     code_view.update(Traceback(theme="github-dark", width=None))
-    #     #     self.sub_title = "ERROR"
-    #     # else:
-    #     #     code_view.update(syntax)
-    #     #     self.query_one("#code-view").scroll_home(animate=False)
-        #     self.sub_title = str(event.path)
 
     def action_extract_menu(self) -> None:
-        self.show_file_input = not self.show_file_input
-        if self.show_file_input:
-            self.query_one(Input).focus()
-        else:
-            self.current_node.tree.focus()
-
-        self.query_one(Input).set_class(not self.show_file_input, "hidden")
-
-    def action_exit_text_field(self) -> None:
-        self.show_file_input = False
-        self.query_one(Input).set_class(True, "hidden")
-        self.query_one(Tree).focus()
+        out_directory = filedialog.askdirectory(initialdir=getcwd(), mustexist=True, title="Select output directory")
+        ztv.extract_file(config, input_file, self.current_node.data.fullPath, out_directory, len(self.current_node.children) > 0)
+        # TODO: Toast notification of extraction result
 
     def action_toggle_files(self) -> None:
         """Called in response to key binding."""
@@ -127,22 +94,14 @@ class TreeTUI(App):
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.current_node = event.node
 
-    def on_input_submitted(self) -> None:
-        input_box = self.query_one(Input)
-        ztv.extract_file(config, input_file, self.current_node.data.fullPath, input_box.value,
-                         len(self.current_node.children) > 0)
-        input_box.value = ""
-        self.action_extract_menu()
-
-        # TODO: Toast notification of extraction result
-
 
 if __name__ == "__main__":
     config = ztv.load_create_config()
     # TODO: Allow selection of input file/zpaq, maybe txt
-    #input_file = "b:/g_drive.zpaq"
     if len(argv) == 1:
-        input_file = input("Enter file path to load: ")
+        input_file = None
+        while input_file is None:
+            input_file = filedialog.askopenfilename(initialdir=getcwd(), title="Select a zpaq file",)
     elif len(argv) == 2:
         input_file = argv[1]
     else:
