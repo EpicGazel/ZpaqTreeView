@@ -33,12 +33,12 @@ def build_parent_nodes(tree: Tree, path: str):
     # TODO: verify works with non-windows drive root dir/linux directories
     if parent_path.find('/') == -1:
         if not tree.get_node(parent_path):  # parent is root
-            data = File(parent_path, 0, 0, "DV")
+            data = File(parent_path, 0, 0, "D")
             tree.create_node(parent_path, parent_path, data=data)
         return parent_path
-
-    if not tree.get_node(parent_path):
-        data = File(parent_path, 0, 0, "?")
+    elif not tree.get_node(parent_path):
+        build_parent_nodes(tree, parent_path)
+        data = File(parent_path, 0, 0, "D")
         tree.create_node(parent_path, parent_path, parent=build_parent_nodes(tree, parent_path), data=data)
 
     return parent_path

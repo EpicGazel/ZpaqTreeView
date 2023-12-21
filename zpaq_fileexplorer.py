@@ -131,23 +131,6 @@ class FileObj(BaseFileObj):
         end_offset = min(self.file_size, offset + length)
         return self.data[offset:end_offset]
 
-    # def write(self, buffer, offset, write_to_end_of_file):
-    #     if write_to_end_of_file:
-    #         offset = self.file_size
-    #     end_offset = offset + len(buffer)
-    #     if end_offset > self.file_size:
-    #         self.set_file_size(end_offset)
-    #     self.data[offset:end_offset] = buffer
-    #     return len(buffer)
-
-    # def constrained_write(self, buffer, offset):
-    #     if offset >= self.file_size:
-    #         return 0
-    #     end_offset = min(self.file_size, offset + len(buffer))
-    #     transferred_length = end_offset - offset
-    #     self.data[offset:end_offset] = buffer[:transferred_length]
-    #     return transferred_length
-
 
 class FolderObj(BaseFileObj):
     def __init__(self, path, attributes, security_descriptor, file_data):
@@ -166,7 +149,7 @@ class OpenedObj:
 
 class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
-    def __init__(self, volume_label, input_file, read_only=False):
+    def __init__(self, volume_label, input_file, cache_location, max_cache_size, config, read_only=False):
         super().__init__()
         if len(volume_label) > 31:
             raise ValueError("`volume_label` must be 31 characters long max")
@@ -182,6 +165,9 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
         }
 
         self.input_file = input_file
+        self.max_cache_size = max_cache_size
+        self.config = config
+        self.cache_location = PureWindowsPath(cache_location)
         self.read_only = read_only
         self._root_path = PureWindowsPath("/")
         self._root_obj = FolderObj(
@@ -416,7 +402,11 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
     @operation
     def read(self, file_context, offset, length):
-        return file_context.file_obj.read(offset, length)
+        if file_context.file_obj.file_size < self.max_cache_size: # 5 MB
+            ztv.extract_file(config, self.input_file, file_context.path,
+                             self.cache_location, file_context.file_obj.file_data.is_directory())
+
+        return -1 #ile_context.file_obj.read(offset, length)
 
     @operation
     def write(self, file_context, buffer, offset, write_to_end_of_file, constrained_io):
@@ -438,8 +428,8 @@ class ZpaqFileSystemOperations(BaseFileSystemOperations):
 
 
 def create_memory_file_system(
-    mountpoint, label="memfs", prefix="", verbose=True, debug=False, testing=False, input_file=""
-):
+    mountpoint, label="memfs", prefix="", verbose=True, debug=False, testing=False,
+        input_file="", cache_location="%userprofile%/AppData/Local/", max_cache_size = 30 * 10^6 , config=None):
     if debug:
         enable_debug_log()
 
@@ -452,7 +442,7 @@ def create_memory_file_system(
     is_drive = mountpoint.parent == mountpoint
     reject_irp_prior_to_transact0 = not is_drive and not testing
 
-    operations = ZpaqFileSystemOperations(volume_label=label, input_file=input_file)
+    operations = ZpaqFileSystemOperations(label, input_file, cache_location, max_cache_size, config)
     fs = FileSystem(
         str(mountpoint),
         operations,
@@ -493,39 +483,30 @@ def convert_filetree(config, file_path, fs):
     while len(tl_node_stack) > 0:
         tl_node = tl_node_stack.pop()
         # fs_node = fs_stack.pop()
-        c1 += 1
-        print(f"C1: {c1}")
-        if c1 == 3:
-            print("break")
-        c2 = 0
+
         #children_sorted = tl_tree.children(tl_node.tag)
         #children_sorted.sort(key=lambda x: (x.is_leaf(), x.data.name.lower()))  # TODO: check if necessary to sort
         if (tl_node.data.is_directory()):
             for tl_child_node in tl_tree.children(tl_node.tag):  # children_sorted:
-                c2 += 1
-                print(f"C2: {c2}")
                 new_path = tl_child_node.data.fullPath.replace(tl_tree.root, "")
                 if (tl_child_node.data.is_directory()): # is directory
                     tl_node_stack.append(tl_child_node)
                     fs.operations._create_directory(new_path, tl_child_node.data)
                 else: # is file
-                    fs.operations.create(
-                        new_path, CREATE_FILE_CREATE_OPTIONS.FILE_NON_DIRECTORY_FILE, None,
-                        FILE_ATTRIBUTE.FILE_ATTRIBUTE_NORMAL, None, 0, tl_child_node.data).file_obj.set_file_size(
-                                                                                            tl_child_node.data.size)
-        # else:  # if file
-        #     new_path = tl_node.data.fullPath.replace(tl_tree.root, "")
-        #     fs.operations.create(
-        #         new_path, CREATE_FILE_CREATE_OPTIONS.FILE_NON_DIRECTORY_FILE, None,
-        #         FILE_ATTRIBUTE.FILE_ATTRIBUTE_NORMAL, None, tl_child_node.data.size, tl_child_node.data)
+                    fileobj = fs.operations.create(new_path, CREATE_FILE_CREATE_OPTIONS.FILE_NON_DIRECTORY_FILE, None,
+                        FILE_ATTRIBUTE.FILE_ATTRIBUTE_NORMAL, fs.operations._root_obj.security_descriptor, 0, tl_child_node.data)
+                    fileobj.file_obj.set_file_size(tl_child_node.data.size)
+
+        bar.update()
 
 
     bar.close()
 
-def create_filesystem(mountpoint, label, prefix, verbose, debug, input_file):
+def create_filesystem(mountpoint, label, prefix, verbose, debug, input_file, cache_location, max_cache_size):
     config = ztv.load_create_config()
     print(f"Input file: {input_file}")
-    fs = create_memory_file_system(mountpoint, label, prefix, verbose, debug, input_file=input_file)
+    fs = create_memory_file_system(mountpoint, label, prefix, verbose, debug, False,
+                                   input_file, cache_location, max_cache_size, config,)
     try:
         print("Starting FS")
         fs.start()
@@ -560,6 +541,8 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true")
     parser.add_argument("-l", "--label", type=str, default="memfs")
     parser.add_argument("-p", "--prefix", type=str, default="")
+    parser.add_argument("-c", "--cache-location", type=str, default="%userprofile%/AppData/Local/Temp")
+    parser.add_argument("-s", "--cache-size-limit", type=int, default=30 * 10^6) # 30 MB
     args = parser.parse_args()
 
     if args.zpaq is None:
@@ -569,7 +552,8 @@ def main():
 
         args.zpaq = input_file
 
-    create_filesystem(args.mountpoint, args.label, args.prefix, args.verbose, args.debug, args.zpaq)
+    create_filesystem(args.mountpoint, args.label, args.prefix, args.verbose,
+                      args.debug, args.zpaq, args.cache_location, args.cache_size_limit)
 
 
 
