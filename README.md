@@ -1,5 +1,5 @@
 # ZpaqTreeView
-Allows browsing and extraction of a zpaqfranz archive in a tree/hierarchical file structure view.
+Allows browsing and extraction of a [zpaqfranz](https://github.com/fcorbelli/zpaqfranz) archive in a tree/hierarchical file structure view.
 
 It can be a pain to browse through the contents of a zpaq as they are output in an unwieldy list. As such, I've cleaned up the list output by putting it into a tree structure and allowing the browsing and extraction of folders and files.
 
