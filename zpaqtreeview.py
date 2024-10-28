@@ -62,29 +62,38 @@ def create_filetree(tree: Tree, contents):
     num_files_pattern = re.compile(r"([0-9]+(\.[0-9])*)+\sfiles")
 
     # Find number of files for estimate (this appears to be off because of the versions?)
-    num_files = 0
-    for line in contents:
-        num_files -= 1
-        match = re.search(num_files_pattern, line)
-        if match:
-            temp = match.group()
-            num_files = int(temp[0:temp.find(" files")].replace(".", ""))
-            break
-        elif line.find("ERROR_FILE_NOT_FOUND") != -1:
-            print("ZPAQ file not found.", file=stderr)
-            exit(1)
-        elif line.find("Usage") != -1:
-            print("ZPAQ path may have been entered improperly.", file=stderr)
-            exit(1)
+    num_files = 1000
+    # for line in contents:
+    #     num_files -= 1
+    #     match = re.search(num_files_pattern, line)
+    #     if match:
+    #         temp = match.group()
+    #         num_files = int(temp[0:temp.find(" files")].replace(".", ""))
+    #         break
+    #     elif line.find("ERROR_FILE_NOT_FOUND") != -1:
+    #         print("ZPAQ file not found.", file=stderr)
+    #         exit(1)
+    #     elif line.find("Usage") != -1:
+    #         print("ZPAQ path may have been entered improperly.", file=stderr)
+    #         exit(1)
 
     print("Creating file tree...")
     bar = tqdm.tqdm(contents, total=num_files, unit="files", colour="green", leave=False)
     for line in bar:
         try:
-            if line[0] == "-":
+            if "," in line and "-csv" not in line:
                 line = line.rstrip()
-                date, _, __, attribute, fullpath = re.search(pattern, line).groups()
-                size = re.search(pattern, line).group("size")
+                #date, _, __, attribute, fullpath = re.search(pattern, line).groups()
+                #size = re.search(pattern, line).group("size")
+                datetime, attribute, size, ratio, _, fullpath = line.split(",")
+                date = datetime.split(" ")[0]
+
+                date = date.strip("'")
+                attribute = attribute.strip("'")
+                size = size.strip("'")
+                ratio = ratio.strip("'")
+                fullpath = fullpath.strip("'")
+
                 testfile = File(fullpath, size, date, attribute)
                 add_node_new(tree, testfile)
             else:
@@ -262,7 +271,7 @@ def main(config=None, file_path=None):
     zpaq_file = None
     try:
         if ext == 'zpaq':
-            contents = Popen([zpaqpath, "l", file_path, "-longpath"], stdout=PIPE, encoding="utf-8",
+            contents = Popen([zpaqpath, "l", file_path, "-longpath", "-terse", "-csv", "','"], stdout=PIPE, encoding="utf-8",
                              errors="ignore").stdout
             zpaq_file = file_path
         elif ext == 'txt':
